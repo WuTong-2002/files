@@ -1,0 +1,4 @@
+ddgs>=9.10.0
+fastmcp>=3.0.1
+openai>=2.16.0
+pyyaml>=6.0.3

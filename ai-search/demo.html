@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>联网问答Agent Demo</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f2f5; height: 100vh; display: flex; flex-direction: column; }
+    #header { background: linear-gradient(135deg, #1a73e8, #0d47a1); color: #fff; padding: 14px 20px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,.15); }
+    #header h1 { font-size: 18px; font-weight: 600; letter-spacing: .5px; }
+    #header p { font-size: 12px; opacity: .8; margin-top: 2px; }
+    #chat { flex: 1; overflow-y: auto; padding: 20px; max-width: 800px; width: 100%; margin: 0 auto; }
+    #welcome { text-align: center; padding: 60px 20px; color: #999; }
+    #welcome .icon { font-size: 48px; margin-bottom: 12px; }
+    #welcome h2 { font-size: 20px; color: #555; font-weight: 500; margin-bottom: 8px; }
+    #welcome p { font-size: 14px; line-height: 1.6; }
+    #welcome .hints { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 20px; }
+    #welcome .hints button { background: #fff; border: 1px solid #ddd; padding: 8px 16px; border-radius: 20px; cursor: pointer; font-size: 13px; color: #333; transition: all .2s; }
+    #welcome .hints button:hover { border-color: #1a73e8; color: #1a73e8; background: #e8f0fe; }
+    .msg { margin-bottom: 16px; display: flex; gap: 10px; }
+    .msg.user { justify-content: flex-end; }
+    .bubble { max-width: 75%; padding: 10px 14px; border-radius: 12px; line-height: 1.7; word-break: break-word; }
+    .msg.user .bubble { background: #1a73e8; color: #fff; border-bottom-right-radius: 4px; }
+    .msg.assistant .bubble { background: #fff; color: #333; border-bottom-left-radius: 4px; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+    .bubble h3 { font-size: 15px; margin: 8px 0 4px; color: #1a73e8; }
+    .bubble h4 { font-size: 14px; margin: 6px 0 3px; color: #333; }
+    .bubble img { max-width: 100%; border-radius: 6px; margin: 6px 0; }
+    .bubble ul, .bubble ol { padding-left: 18px; margin: 4px 0; }
+    .refs { margin-top: 8px; padding-top: 8px; border-top: 1px solid #eee; font-size: 12px; color: #888; }
+    .refs a { color: #1a73e8; text-decoration: none; margin-right: 10px; }
+    .refs a:hover { text-decoration: underline; }
+    .follow-ups { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+    .follow-ups button { background: #e8f0fe; border: none; padding: 6px 12px; border-radius: 16px; cursor: pointer; font-size: 13px; color: #1a73e8; transition: background .2s; }
+    .follow-ups button:hover { background: #d2e3fc; }
+    #input-area { border-top: 1px solid #ddd; background: #fff; padding: 12px; }
+    #input-area form { max-width: 800px; margin: 0 auto; display: flex; gap: 8px; }
+    #input-area textarea { flex: 1; padding: 10px 14px; border: 1px solid #ddd; border-radius: 22px; resize: none; font-size: 14px; height: 44px; font-family: inherit; outline: none; transition: border-color .2s; }
+    #input-area textarea:focus { border-color: #1a73e8; }
+    #input-area button { padding: 0 20px; background: #1a73e8; color: #fff; border: none; border-radius: 22px; cursor: pointer; font-size: 14px; transition: background .2s; }
+    #input-area button:hover { background: #1557b0; }
+    #input-area button:disabled { opacity: .5; cursor: not-allowed; }
+  </style>
+</head>
+<body>
+  <div id="header">
+    <h1>🔍 联网问答 Agent</h1>
+    <p>基于火山引擎 · 实时联网搜索</p>
+  </div>
+  <div id="chat">
+    <div id="welcome">
+      <div class="icon">💬</div>
+      <h2>你好，有什么想问的？</h2>
+      <p>我可以联网搜索，为你提供实时信息和参考资料</p>
+      <div class="hints">
+        <button onclick="sendMessage('今天有什么热点新闻')">今天有什么热点新闻</button>
+        <button onclick="sendMessage('推荐一些好看的电影')">推荐一些好看的电影</button>
+        <button onclick="sendMessage('Python和Go哪个更适合后端开发')">Python vs Go</button>
+      </div>
+    </div>
+  </div>
+  <div id="input-area">
+    <form id="form">
+      <textarea id="input" placeholder="输入消息..." rows="1"></textarea>
+      <button type="submit" id="send">发送</button>
+    </form>
+  </div>
+<script>
+const API_URL = '/api/chat';
+const messages = [];
+const chat = document.getElementById('chat');
+const input = document.getElementById('input');
+const sendBtn = document.getElementById('send');
+const form = document.getElementById('form');
+
+function escapeHtml(text) {
+  const d = document.createElement('div');
+  d.textContent = text;
+  return d.innerHTML;
+}
+
+// 简易 markdown: 图片、链接、加粗、标题
+function renderMarkdown(text) {
+  let html = text
+    .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1">')
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/^#### (.+)$/gm, '<h4 style="font-size:13px;margin:5px 0 2px;color:#555">$1</h4>')
+    .replace(/^### (.+)$/gm, '<h4>$1</h4>')
+    .replace(/^## (.+)$/gm, '<h3>$1</h3>')
+    .replace(/^- (.+)$/gm, '• $1')
+    .replace(/\n/g, '<br>');
+  return html;
+}
+
+function addUserMsg(content) {
+  const welcome = document.getElementById('welcome');
+  if (welcome) welcome.remove();
+  const div = document.createElement('div');
+  div.className = 'msg user';
+  div.innerHTML = `<div class="bubble">${escapeHtml(content)}</div>`;
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function createAssistantMsg() {
+  const div = document.createElement('div');
+  div.className = 'msg assistant';
+  div.innerHTML = '<div class="bubble"></div>';
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+  return div;
+}
+
+function showReferences(container, refs) {
+  if (!refs || !refs.length) return;
+  const refsDiv = document.createElement('div');
+  refsDiv.className = 'refs';
+  refsDiv.innerHTML = '参考: ' + refs
+    .filter(r => r.url)
+    .slice(0, 5)
+    .map((r, i) => `<a href="${r.url}" target="_blank">[${i+1}] ${escapeHtml(r.title || r.site_name || '链接')}</a>`)
+    .join('');
+  container.querySelector('.bubble').appendChild(refsDiv);
+}
+
+function showFollowUps(container, followUps) {
+  if (!followUps || !followUps.length) return;
+  const div = document.createElement('div');
+  div.className = 'follow-ups';
+  followUps.forEach(f => {
+    const btn = document.createElement('button');
+    btn.textContent = f.item;
+    btn.onclick = () => sendMessage(f.item);
+    div.appendChild(btn);
+  });
+  container.querySelector('.bubble').appendChild(div);
+}
+
+async function sendMessage(userText) {
+  messages.push({ role: 'user', content: userText });
+  addUserMsg(userText);
+  input.value = '';
+  sendBtn.disabled = true;
+
+  const msgDiv = createAssistantMsg();
+  const bubble = msgDiv.querySelector('.bubble');
+  let fullText = '';
+  let refs = null;
+  let followUps = null;
+
+  try {
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages, stream: true })
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      bubble.textContent = `请求失败 (${res.status}): ${errText}`;
+      sendBtn.disabled = false;
+      return;
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed.startsWith('data:')) continue;
+        const data = trimmed.slice(5).trim();
+        if (data === '[DONE]') continue;
+
+        try {
+          const json = JSON.parse(data);
+
+          // 提取参考资料（首帧）
+          if (json.references && !refs) refs = json.references;
+          // 提取追问（元数据帧）
+          if (json.follow_ups) followUps = json.follow_ups;
+
+          const delta = json.choices?.[0]?.delta?.content;
+          if (delta) {
+            fullText += delta;
+            bubble.innerHTML = renderMarkdown(fullText);
+            chat.scrollTop = chat.scrollHeight;
+          }
+        } catch (e) { /* skip */ }
+      }
+    }
+
+    if (!fullText) {
+      // 非流式回退
+      try {
+        const text = decoder.decode();
+        if (text) {
+          const json = JSON.parse(text);
+          fullText = json.choices?.[0]?.message?.content || '';
+          bubble.innerHTML = renderMarkdown(fullText);
+          if (json.references) refs = json.references;
+          if (json.follow_ups) followUps = json.follow_ups;
+        }
+      } catch(e) {}
+    }
+
+    messages.push({ role: 'assistant', content: fullText });
+    showReferences(msgDiv, refs);
+    showFollowUps(msgDiv, followUps);
+
+  } catch (err) {
+    bubble.textContent = `错误: ${err.message}`;
+  }
+
+  sendBtn.disabled = false;
+  chat.scrollTop = chat.scrollHeight;
+}
+
+form.addEventListener('submit', (e) => {
+  e.preventDefault();
+  const text = input.value.trim();
+  if (!text || sendBtn.disabled) return;
+  sendMessage(text);
+});
+
+input.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    form.dispatchEvent(new Event('submit'));
+  }
+});
+</script>
+</body>
+</html>

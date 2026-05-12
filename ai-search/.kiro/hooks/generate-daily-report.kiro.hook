@@ -1,0 +1,13 @@
+{
+  "enabled": true,
+  "name": "查看并提交日报",
+  "description": "用户点击按钮后查看日报、检查新增活动、生成汇总、确认后提交",
+  "version": "8",
+  "when": {
+    "type": "userTriggered"
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "按以下流程处理日报：\n\n1. 调用 view_daily_report() 查看当日日报。\n2. 根据返回内容判断：\n   a. 如果包含新增活动列表（⚠️ 标记）：基于现有 md 内容和新增活动，生成覆盖全部内容的高质量结构化中文汇总，调用 update_phase_summary(summary=工作详情, brief_summary=概要) 更新。\n   b. 如果工作详情为「暂无汇总」：根据返回的原始数据生成结构化中文汇总，调用 update_phase_summary 更新。\n   c. 如果已有完整汇总且无新增活动：无需重新生成，直接进入下一步。\n3. 不要在聊天中展示日报全文。告知用户本地 md 文件路径，引导在编辑器中查看和编辑。简要说明日报包含哪些项目的内容。\n4. 询问用户是否有需要补充的内容（如会议、评审等非代码工作）。如有，调用 update_manual_notes 记录备注，重新生成汇总并 update_phase_summary 更新。\n5. 用户确认后，调用 confirm_and_upload() 提交日报。"
+  }
+}

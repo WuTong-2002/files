@@ -1,0 +1,5 @@
+[console_scripts]
+chatbot = examples.chatbot:main
+nodes = examples.node_examples:main
+search = examples.search_agent:main
+workflow = examples.workflow:main

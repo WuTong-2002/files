@@ -1,0 +1,13 @@
+{
+  "enabled": true,
+  "name": "Agent 停止处理",
+  "description": "Agent 停止时记录活动日志，如有待处理检查点则自动生成阶段汇总，如有周报待生成则自动触发",
+  "version": "12",
+  "when": {
+    "type": "agentStop"
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "重要约束：禁止创建或修改 spec 文件，禁止触发 spec 工作流。只需一次 MCP 调用完成所有操作。\n\n调用 log_agent_activity 记录本次会话的活动摘要（activity_type 从 coding/debugging/discussion/docs 中选一个）。\n\nlog_agent_activity 的返回值已包含检查点状态，直接检查返回的 JSON：\n- carryover.has_carryover=true → 通知用户前一天日报未提交\n- phase_checkpoint.pending=true → 基于返回的 activities 和 git_summary 数据生成汇总，调用 update_phase_summary(checkpoint, summary, brief_summary) 存储\n- weekly_report.pending=true → 调用 generate_weekly_report() 获取本周数据和模板，基于参考信息为每个项目生成风险和下一步，然后调用 save_weekly_report(content=完整周报, week_start_date=返回的week_start_date) 保存\n- 都没有 → 不做额外操作\n\n汇总要求：按项目维度组织，中文，简洁专业，不加顶级标题。brief_summary 格式：- **项目名** — 工作描述。"
+  }
+}

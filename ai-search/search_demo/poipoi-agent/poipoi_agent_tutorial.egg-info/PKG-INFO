@@ -1,0 +1,190 @@
+Metadata-Version: 2.4
+Name: poipoi-agent-tutorial
+Version: 0.1.0
+Summary: Add your description here
+Requires-Python: >=3.12
+Description-Content-Type: text/markdown
+Requires-Dist: ddgs>=9.10.0
+Requires-Dist: fastmcp>=3.0.1
+Requires-Dist: openai>=2.16.0
+Requires-Dist: pyyaml>=6.0.3
+
+# poipoi-agent
+
+一个轻量级的 AI Agent 框架，让大语言模型（LLM）能够通过工具与世界交互。
+
+## 特性
+
+- **Node-Flow 架构**：基于节点的工作流系统，支持多步骤复杂流程
+- **工具调用**：内置 8 种常用工具，支持扩展自定义工具
+- **MCP 集成**：支持 Model Context Protocol 扩展能力
+- **技能系统**：基于 YAML frontmatter 的技能定义（如 PDF 处理）
+- **OpenAI 兼容**：支持任意 OpenAI 兼容的 LLM API
+
+## 安装
+
+```bash
+cd poipoi-agent
+pip install -e .
+```
+
+## 快速开始
+
+### 环境变量
+
+```bash
+export OPENAI_API_KEY="your-api-key"
+export OPENAI_BASE_URL="https://api.openai.com/v1"  # 可选
+```
+
+### 简单聊天机器人
+
+```python
+from core import Flow
+from core.llm import call_llm
+
+messages = []
+
+while True:
+    user_input = input("You: ")
+    messages.append({"role": "user", "content": user_input})
+
+    response = call_llm(messages=messages)
+    messages.append({"role": "assistant", "content": response})
+
+    print(f"AI: {response}")
+```
+
+### 带工具的 Agent
+
+```python
+from core import Flow, Node
+from core.llm import call_llm
+from tools import ToolExecutor
+
+# 定义工具
+tools = [...]  # 你的工具定义
+
+# 调用 LLM 并执行工具
+response = call_llm(messages=messages, tools=tools)
+
+if response.get("tool_calls"):
+    executor = ToolExecutor(tools)
+    results = executor.execute_all(response["tool_calls"])
+    # 将结果加入对话继续
+```
+
+## 内置工具
+
+| 工具 | 描述 |
+|------|------|
+| `read` | 读取文件内容 |
+| `write` | 写入文件内容 |
+| `edit` | 编辑文件（文本替换） |
+| `bash` | 执行 shell 命令 |
+| `grep` | 搜索文件内容 |
+| `find` | 按 glob 模式查找文件 |
+| `ls` | 列出目录内容 |
+| `search` | Web 搜索（DuckDuckGo） |
+
+## 项目结构
+
+```
+poipoi-agent/
+├── core/               # 核心框架
+│   ├── llm.py          # LLM API 集成
+│   └── node.py         # Node & Flow 工作流系统
+├── tools/              # 工具系统
+│   ├── executor.py     # 工具调用解析与执行
+│   ├── builtins/       # 内置工具
+│   ├── mcp/            # MCP 集成
+│   └── skills/         # 技能定义
+└── examples/           # 示例应用
+    ├── chatbot/        # 简单聊天机器人
+    ├── chatbot_with_tools/  # 带工具的聊天机器人
+    └── workflow/       # 多节点工作流示例
+```
+
+## 示例
+
+运行示例：
+
+```bash
+# 简单聊天
+poi chatbot
+
+# 带工具的聊天
+poi chatbot_with_tools
+
+# 工作流示例
+poi workflow
+
+# 搜索 Agent
+poi search
+```
+
+## 依赖
+
+- Python >= 3.13
+- `openai` - OpenAI API 客户端
+- `ddgs` - DuckDuckGo 搜索
+- `fastmcp` - MCP 服务器
+- `pyyaml` - YAML 解析
+
+可选工具（增强功能）：
+- `ripgrep` (rg) - 提升 grep 性能
+- `fd` - 提升 find 性能
+
+
+作为 Agent 新手，poipoi-agent 是个很好的起点，因为它把 Agent 的核心概念拆得很清晰。我建议按这个顺序来学：
+
+## 第一步：理解"LLM 就是个函数调用"
+
+先看 `core/llm.py`，它只做一件事：把消息发给 LLM，拿回回复。关键是理解 `call_llm` 的两种模式：
+- 传 `prompt` → 返回字符串（最简单的问答）
+- 传 `messages` + `tools` → 返回一个字典，里面可能包含 `tool_calls`
+
+这就是 Agent 的起点：LLM 不只是回答问题，它还能"决定要做什么"。
+
+## 第二步：跑一下最简单的 chatbot
+
+看 `examples/chatbot/main.py`，这里引入了 Node-Flow 的概念，但逻辑很简单：用户说话 → LLM 回复 → 打印。重点感受 `Node.exec()` 返回 `(action, payload)` 这个模式，action 决定下一步走哪个节点。
+
+## 第三步：这是最关键的一步 — 理解 tool calling
+
+按这个顺序看：
+
+1. `tools/builtins/tool_def.py` — 看 `Tool` 类和 `get_builtin_tools()`，理解一个工具就是"名字 + 描述 + 参数 schema + 执行函数"。`to_llm_format()` 把它转成 OpenAI 的 function calling 格式，这样 LLM 就知道有哪些工具可用。
+
+2. 随便挑一个内置工具看看实现，比如 `tools/builtins/ls.py`，会发现工具本身就是普通的 Python 函数。
+
+3. `tools/executor.py` — `ToolExecutor` 做的事情是：解析 LLM 返回的 tool_calls → 找到对应工具 → 执行 → 把结果包装成 `ToolResult`。
+
+4. `examples/chatbot_with_tools/main.py` — 这是整个项目的精华。看这三个节点怎么连接的：
+
+```
+chat - "tool_call" >> tool_call
+tool_call - "chat" >> chat
+chat - "output" >> output
+```
+
+这形成了一个循环：LLM 说"我要调用工具" → 执行工具 → 把结果喂回 LLM → LLM 再决定是继续调工具还是给出最终回答。这就是 ReAct 模式的核心，也是几乎所有 Agent 的基本工作方式。
+
+## 第四步：理解工作流编排
+
+看 `examples/workflow/main.py`，这是一个线性流水线：Query → Search → Summarize。和 chatbot_with_tools 的循环不同，这里展示的是"预定义步骤"的编排方式。
+
+对比这两种模式，你就能理解 Agent 的两大范式：
+- 自主决策循环（chatbot_with_tools）：LLM 自己决定下一步
+- 预定义工作流（workflow）：开发者设计好流程，LLM 在每个节点里执行
+
+## 第五步：动手改
+
+学到这里概念就差不多了，建议动手试试：
+- 写一个新的内置工具（比如获取当前时间），注册到 `get_builtin_tools()` 里
+- 在 chatbot_with_tools 基础上加一个新节点（比如在输出前做内容审核）
+- 试试给 workflow 加分支逻辑（Node 返回不同 action 走不同路径）
+
+核心就一句话：Agent = LLM + 工具 + 循环。LLM 负责"想"，工具负责"做"，循环让它能持续思考和行动直到完成任务。poipoi-agent 把这三个要素拆得很干净，读懂它你就抓住了 Agent 的本质。
+
+已记录本次活动，无待处理的阶段检查点或跨天遗留数据。

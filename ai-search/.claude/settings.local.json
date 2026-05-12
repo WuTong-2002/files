@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m py_compile search_demo/main.py)",
+      "Bash(netstat -ano)",
+      "Bash(findstr LISTENING)",
+      "Bash(findstr :7862)",
+      "Bash(tasklist *)",
+      "Bash(findstr 26480)",
+      "Bash(wmic process *)",
+      "WebFetch(domain:www.volcengine.com)",
+      "WebSearch"
+    ]
+  }
+}

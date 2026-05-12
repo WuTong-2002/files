@@ -1,0 +1,3 @@
+generate-daily-report.kiro.hook
+phase-checkpoint-hook.kiro.hook
+submit-historical-report.kiro.hook

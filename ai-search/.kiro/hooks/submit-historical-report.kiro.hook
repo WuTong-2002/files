@@ -1,0 +1,13 @@
+{
+  "enabled": true,
+  "name": "补交历史日报",
+  "description": "用户点击按钮后，选择日期、查看历史日报内容、生成高质量汇总、确认后提交",
+  "version": "3",
+  "when": {
+    "type": "userTriggered"
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "按以下流程处理历史日报补交：\n\n1. 询问用户要补交哪天的日报（格式 YYYY-MM-DD）。\n2. 调用 view_daily_report(date=xxx) 查看该日期的日报内容。\n   - 如果返回错误（无数据等），告知用户并结束。\n3. 如果返回中包含新增活动列表（⚠️ 标记），基于现有 md 内容和新增活动生成高质量的结构化中文汇总：\n   - 汇总应覆盖所有活动记录，按项目/模块分组\n   - 使用清晰的 Markdown 格式（标题、列表等）\n   - 语言为中文\n4. 调用 update_phase_summary(summary=生成的工作详情, brief_summary=生成的概要, date=xxx) 更新汇总。\n5. 不要在聊天中展示日报全文（内容过长会显示不全）。告知用户本地 md 文件路径，引导用户在编辑器中打开查看和编辑。用一两句话简要说明日报包含哪些项目的内容即可。\n6. 询问用户是否需要修改。如有修改意见，调整后再次调用 update_phase_summary(date=xxx) 更新。\n7. 用户确认后，调用 confirm_and_upload(date=xxx) 提交日报。"
+  }
+}
